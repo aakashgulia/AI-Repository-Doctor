@@ -38,3 +38,13 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Local development backups and demo archives
+app/api/*.backup
+app/api/main.before-*.py
+frontend/src/*.backup.tsx
+frontend/src/App.before-*.tsx
+data/*.zip
+data/uploads/*.zip
+
+data/active_repository.txt
