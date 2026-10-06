@@ -30,10 +30,56 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Verify Repository Doctor
-        run: python -c "from app.api.main import app; print('Repository Doctor import OK:', app.title)"
+        run: |
+          python -c "from app.api.main import app; print('Repository Doctor import OK:', app.title)"
 
       - name: Run Doctor validation
-        run: python -m compileall -q app
+        run: |
+          python -m compileall -q app
+
+      - name: Run Automated Doctor
+        run: |
+          mkdir -p reports/automated-doctor
+
+          FROM_COMMIT="${{ github.event.before }}"
+          TO_COMMIT="${{ github.sha }}"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM_COMMIT="${{ github.event.pull_request.base.sha }}"
+            TO_COMMIT="${{ github.event.pull_request.head.sha }}"
+          fi
+
+          echo "From commit: ${FROM_COMMIT}"
+          echo "To commit: ${TO_COMMIT}"
+
+          python -c "
+          from app.reports.automated_doctor import AutomatedDoctor
+
+          doctor = AutomatedDoctor(
+              repository_path='.'
+          )
+
+          report = doctor.analyze(
+              from_commit='${FROM_COMMIT}',
+              to_commit='${TO_COMMIT}'
+          )
+
+          doctor.write_json(report)
+          doctor.write_markdown(report)
+
+          print('Automated Doctor completed.')
+          print('Regression detected:', report['summary']['regression_detected'])
+          "
+
+      - name: Upload Doctor report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-doctor-report
+          path: reports/automated-doctor/
+          if-no-files-found: error
