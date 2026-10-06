@@ -2,12 +2,8 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
-
-
-PROJECT_PYTHON = Path(
-    r"D:\AI-Repository-Doctor\.venv\Scripts\python.exe"
-)
 
 
 class TestRunner:
@@ -27,11 +23,6 @@ class TestRunner:
         if not path.is_dir():
             raise ValueError(
                 f"Repository path is not a directory: {path}"
-            )
-
-        if not PROJECT_PYTHON.exists():
-            raise ValueError(
-                f"Project Python executable not found: {PROJECT_PYTHON}"
             )
 
         return path
@@ -106,26 +97,24 @@ class TestRunner:
             "output": output,
         }
 
-    def run(
+    def _run_pytest(
         self,
-        repository_path: str,
+        repository_path: Path,
+        targets: list[str] | None = None,
     ) -> dict:
-        """
-        Run the complete pytest suite.
-        """
+        command = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+        ]
 
-        path = self._validate_repository(
-            repository_path
-        )
+        if targets:
+            command.extend(targets)
 
         result = subprocess.run(
-            [
-                str(PROJECT_PYTHON),
-                "-m",
-                "pytest",
-                "-q",
-            ],
-            cwd=str(path),
+            command,
+            cwd=str(repository_path),
             capture_output=True,
             text=True,
             timeout=120,
@@ -143,6 +132,22 @@ class TestRunner:
         return self._parse_results(
             output=output,
             return_code=result.returncode,
+        )
+
+    def run(
+        self,
+        repository_path: str,
+    ) -> dict:
+        """
+        Run the complete pytest suite.
+        """
+
+        path = self._validate_repository(
+            repository_path
+        )
+
+        return self._run_pytest(
+            repository_path=path
         )
 
     def run_selected(
@@ -173,32 +178,9 @@ class TestRunner:
                 "At least one test target is required."
             )
 
-        result = subprocess.run(
-            [
-                str(PROJECT_PYTHON),
-                "-m",
-                "pytest",
-                "-q",
-                *cleaned_targets,
-            ],
-            cwd=str(path),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        output = "\n".join(
-            part
-            for part in (
-                result.stdout.strip(),
-                result.stderr.strip(),
-            )
-            if part
-        )
-
-        results = self._parse_results(
-            output=output,
-            return_code=result.returncode,
+        results = self._run_pytest(
+            repository_path=path,
+            targets=cleaned_targets,
         )
 
         results["selected_tests"] = cleaned_targets
